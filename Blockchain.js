@@ -228,3 +228,6 @@ console.log(
   MINER_WALLET.getPublic("hex"),
   SathoshiCoin.getBalance(MINER_WALLET.getPublic("hex"))
 );
+
+
+//Lets make P2P

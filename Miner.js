@@ -1,5 +1,9 @@
 // Import the WebSocket module
 const WebSocket = require("ws");
+const readline = require("readline");
+const {Block,  SathoshiCoin} = require("./Blockchain");
+const key = require('./keys');
+
 
 // Define the port number
 const PORT = 3000;
@@ -31,13 +35,30 @@ server.on("connection", (socket) => {
             console.log(_message);
             // Handle different message types
             switch (_message.type) {
-                // If it's a handshake message
+                case "TYPE_REPLACE_CHAIN":
+                    const [newBlock, newDiff] = _message.data;
+                    if (newBlock.prevHash !== SathoshiCoin.getLastBlock.prevHash &&
+                        SathoshiCoin.getLastBlock().hash === newBlock.prevHash &&
+                        Block.hasValidTransactions(newBlock,SathoshiCoin))
+                        {
+                           SathoshiCoin.chain.push(newBlock); 
+                           SathoshiCoin.difficulty= newDiff;
+                        }
+                    break; //change for more miners
+
+                case "TYPE_CREATE_TRANSACTION":
+                    const transaction = _message.data;
+                    SathoshiCoin.addTransaction(transaction);
+                    break;
+                    
+                    // If it's a handshake message
                 case "TYPE_HANDSHAKE":
                     // Extract connected nodes from the message and connect to them
                     const nodes = _message.data;
                     nodes.forEach(node => connect(node));
                     break;
-                // If it's an unknown message type
+                
+                
                 default:
                     console.log("Unknown message type:", _message.type);
             }
@@ -99,6 +120,44 @@ function sendMessage(message) {
 PEERS.forEach(peer => connect(peer));
 
 // Send a test message to all connected peers after a delay
-setTimeout(() => {
-    sendMessage(produceMessage("MESSAGE", "Hello, this is MINER!"));
-}, 5000);
+// setTimeout(() => {
+//     sendMessage(produceMessage("MESSAGE", "Hello, this is MINER!"));
+// }, 5000);
+
+const rl = readline.createInterface(
+    {
+        input: process.stdin,
+        output: process.stdout,
+        prompt: "Enter command\n"
+    }
+);
+
+rl.on('line', (command)=>
+{
+    switch(command.toLowerCase()) {
+        case "mine":
+            if(SathoshiCoin.transaction.length !==0){
+                SathoshiCoin.mineTransaction(key.MINER_KEY.getPublic("hex"));
+                sendMessage(produceMessage("TYPE_CREATE_TRANSACTION", [SathoshiCoin.getLastBlock(), SathoshiCoin.difficulty]));
+            }
+            break;
+        case "balance":
+            console.log("Miner Balance",SathoshiCoin.getBalance(key.MINER_KEY.getPublic("hex")));
+            break;
+        case "blockchain":
+            console.log(SathoshiCoin);
+            break;
+        case "clear":
+            console.clear();
+            break;
+}
+rl.prompt();
+}).on("close",()=>{
+    console.log("Exiting");
+    process.exit(0);
+});
+
+
+
+
+process.on("uncaughtException", (error) => console.log(error));

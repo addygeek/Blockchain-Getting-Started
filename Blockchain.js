@@ -1,6 +1,7 @@
 // Importing Crypto Library
 const crypto = require("crypto");
 const key = require("./keys");
+
 // Creating a function to calculate the SHA256 hash of a message
 SHA256 = (message) => crypto.createHash("sha256").update(message).digest("hex");
 

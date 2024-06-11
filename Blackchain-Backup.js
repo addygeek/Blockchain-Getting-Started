@@ -1,6 +1,6 @@
 // Importing Crypto Library
 const crypto = require("crypto");
-const key = require("./keys");
+
 // Creating a function to calculate the SHA256 hash of a message
 SHA256 = (message) => crypto.createHash("sha256").update(message).digest("hex");
 
@@ -9,24 +9,13 @@ const EC = require("elliptic").ec,
   ec = new EC("secp256k1");
 
 // Configuring the MINT WALLET
-//const MINT_WALLET = ec.genKeyPair();
-//const MINT_PUBLIC_ADDRESS = MINT_WALLET.getPublic("hex");
-const MINT_PRIVATE_ADDRESS = "0700a1ad28a20e5b2a517c00242d3e25a88d84bf54dce9e1733e6096e6d6495e";
-const MINT_KEY_PAIR = ec.keyFromPrivate(MINT_PRIVATE_ADDRESS, 'hex');
-const MINT_PUBLIC_ADDRESS = MINT_KEY_PAIR.getPublic("hex");
-
-
-// const Miner_Private_Key=  "33f201809376d407959b1d2030933b89f9503f2441a92bf0505e0fdd1b5cf4e"
-
-// const John_Private_Key= "62d101759086c306848a0c1020922a78e8402e1330981afe9404d0ecc0a4be3d"
-
-// const Jenifer_Private_Key= "12a301658495b205738z09101812w67d7301f122087z9ef8303c0dbbz9ad2c"
-
-// const Bob_Private_Ket= "15e301468795b406849g0d1030915f86e8503g132098fbfg505d0edd0b4cf3d"
+const MINT_WALLET = ec.genKeyPair();
+const MINT_PUBLIC_ADDRESS = MINT_WALLET.getPublic("hex");
+const MINT_PRIVATE_ADDRESS = MINT_WALLET.getPrivate("hex");
 
 class Block {
-  constructor(timestamp,data = []) {
-    this.timestamp = timestamp;
+  constructor(data = []) {
+    this.timestamp = Date.now();
     this.data = data;
     this.hash = this.getHash();
     this.prevHash = "";
@@ -47,11 +36,10 @@ class Block {
   }
 
   // Checks if the transactions in the block are valid
- static hasValidTransactions(block, chain) {
-  //changed!!  
-  for (const tx of block.data) {
+  hasValidTransactions(chain) {
+    for (const tx of this.data) {
       if (tx.constructor.name === "Transaction") {
-        if (!Transaction.isValid(tx, chain)) {
+        if (!tx.isValid(tx, chain)) {
           return false;
         }
       } else {
@@ -69,7 +57,7 @@ class Blockchain {
       ADITYA_WALLET.getPublic("hex"),
       1000
     );
-    this.chain = [new Block("",[initialCoinRelease])];
+    this.chain = [new Block([initialCoinRelease])];
     this.difficulty = 2;
     this.blockTime = 5000;
     this.Transaction = [];
@@ -87,7 +75,7 @@ class Blockchain {
     block.mine(this.difficulty);
     this.chain.push(block);
     this.difficulty +=
-      Date.now() - parseInt(this.getLastBlock().timestamp) < this.blockTime ? 1 : -1;
+      Date.now() - this.getLastBlock().timestamp < this.blockTime ? 1 : -1;
   }
 
   // Check the validity of the blockchain
@@ -98,7 +86,7 @@ class Blockchain {
       if (
         currentblock.hash !== currentblock.getHash() ||
         currentblock.prevHash !== prevBlock.hash ||
-        !Block.hasValidTransactions(currentblock)
+        !currentblock.hasValidTransactions(this)
       ) {
         return false;
       }
@@ -108,7 +96,7 @@ class Blockchain {
 
   // Adding transaction to the blockchain
   addTransaction(transaction) {
-    if (Transaction.isValid(transaction, this)) {
+    if (transaction.isValid(transaction, this)) {
       this.Transaction.push(transaction);
     }
   }
@@ -124,10 +112,8 @@ class Blockchain {
       rewardAddress,
       this.reward + gas
     );
-    rewardTransaction.sign(MINT_KEY_PAIR);
-    
     if (this.Transaction.length !== 0) {
-      this.addBlock(new Block(Date.now().toString(),[rewardTransaction, ...this.Transaction]));
+      this.addBlock(new Block([rewardTransaction, ...this.Transaction]));
     }
     this.Transaction = [];
   }
@@ -168,12 +154,12 @@ class Transaction {
     }
   }
 
-  static isValid(tx, chain) {
+  isValid(tx, chain) {
     return (
       tx.from &&
       tx.to &&
       tx.amount &&
-    (chain.getBalance(tx.from) >= tx.amount + tx.gas || tx.from === MINT_PUBLIC_ADDRESS) &&
+      chain.getBalance(tx.from) >= tx.amount + tx.gas &&
       ec
         .keyFromPublic(tx.from, "hex")
         .verify(SHA256(tx.from + tx.to + tx.amount + tx.gas), tx.signature)
@@ -244,6 +230,4 @@ console.log(
 );
 
 
-//Lets export it
-
-module.exports = {Block, Transaction, SathoshiCoin}
+//Lets make P2P

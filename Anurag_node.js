@@ -1,76 +1,97 @@
-const WS =require("ws");
+// Import the WebSocket module
+const WebSocket = require("ws");
 
+// Define the port number
 const PORT = 3002;
 
-const MY_ADDRESS = "ws://localhost:" + PORT;
+// Define the current node's address
+const MY_ADDRESS = `ws://localhost:${PORT}`;
 
-const server = new WS.Server({port:PORT});
+// Create a WebSocket server instance listening on the specified port
+const server = new WebSocket.Server({ port: PORT });
 
-let opened= [], connected=[];
+// Arrays to keep track of opened connections and connected peers
+const opened = [];
+const connected = [];
 
-console.log("Anurag Node is listening on Port " +PORT);
+// Log that the node is listening on the specified port
+console.log("Anurag node is listening on Port " + PORT);
 
+// Event listener for new connections
 server.on("connection", (socket) => {
+    // Event listener for incoming messages
     socket.on("message", (message) => {
-        const _message = JSON.parse(message);
-        console.log(_message);
-        switch (_message.type){
-            case "TYPE_HANDSHAKE":
-                const nodes = _message.data;
-                nodes.forEach(node => connected(node));
+        try {
+            // Parse the incoming message as JSON
+            const _message = JSON.parse(message);
+            // Log the received message
+            console.log(_message);
+            // Handle different message types
+            switch (_message.type) {
+                // If it's a handshake message
+                case "TYPE_HANDSHAKE":
+                    // Extract connected nodes from the message and connect to them
+                    const nodes = _message.data;
+                    nodes.forEach(node => connect(node));
+                    break;
+                // If it's an unknown message type
+                default:
+                    console.log("Unknown message type:", _message.type);
+            }
+        } catch (error) {
+            // Log and handle any errors that occur during message parsing
+            console.error("Error parsing message:", error);
         }
     });
-})
+});
 
-function connected(address)
-{
-if(!connected.find(peerAddress => peerAddress=== address && address !== MY_ADDRESS))
-{
-    const socket = new WS(address);
+// Function to establish connections with peers
+function connect(address) {
+    // Check if the address is not already connected and is not the node's own address
+    if (!connected.includes(address) && address !== MY_ADDRESS) {
+        // Create a new WebSocket connection to the address
+        const socket = new WebSocket(address);
 
-    socket.on("open", () => {
-      //  opened.push({address, socket});
-      //peer to peer push 
-        socket.send(JSON.stringify(produceMessage("TYPE_HANDSHAKE",{MY_ADDRESS, ...connected})));
-        opened.forEach(node => node.socket.send(JSON.stringify(produceMessage("TYPE_HANDSHAKE",{address}))));
-       
-        if(!opened.find(peer => peer.address === address) && address !== MY_ADDRESS)
-        {
-            opened.push({socket,address});
+        // Event listener for successful connection
+        socket.on("open", () => {
+            // Send a handshake message to the connected peer
+            socket.send(JSON.stringify(produceMessage("TYPE_HANDSHAKE", [...connected, MY_ADDRESS])));
+            // Store the opened connection and update the list of connected peers
+            opened.push({ socket, address });
             connected.push(address);
-        }
-    
-    });
+        });
 
-    socket.on("close", () => {
-        opened.splice(connected.indexOf(address),1);
-        connected.splice(connected.indexOf(address),1);
-    })
+        // Event listener for closing connection
+        socket.on("close", () => {
+            // Remove the closed connection from the list of opened connections
+            const index = opened.findIndex(peer => peer.address === address);
+            if (index !== -1) {
+                opened.splice(index, 1);
+            }
+            // Remove the disconnected peer from the list of connected peers
+            connected.splice(connected.indexOf(address), 1);
+        });
 
-function produceMessage(type,data){
-    return {type,data};
+        // Event listener for connection errors
+        socket.on("error", (error) => {
+            console.error("Connection error:", error);
+        });
+    }
 }
 
-setTimeout(() =>{
-sendMessage(produceMessage("MESSAGE", "I am Anurag the NODE!!!"));
-},10000);
+// Function to create message objects
+function produceMessage(type, data) {
+    return { type, data };
+}
 
-function sendMessage(message)
-{
-    opened.forEach(node =>{
+// Function to send a message to all connected peers
+function sendMessage(message) {
+    opened.forEach(node => {
         node.socket.send(JSON.stringify(message));
-    })
-}
-
-    //i 
-    socket.on("close", (message) => {
-        const _message = JSON.parse(message);
-        console.log(_message);
-        switch (_message.type){
-            case "TYPE_HANDSHAKE":
-                const nodes = _message.data;
-                nodes.forEach(node => connected(node));
-        }
     });
 }
-}
+
+// Send a test message to all connected peers after a delay
+setTimeout(() => {
+    sendMessage(produceMessage("MESSAGE", "I am Anurag the Node!"));
+}, 6000);
